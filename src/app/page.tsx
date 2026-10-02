@@ -43,7 +43,7 @@ export default async function Home() {
         <section aria-labelledby="gp-h" className="panel overflow-hidden">
           <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-gradient-to-l from-surface-2/60 to-transparent md:block" />
           <div className="relative grid gap-6 p-5 sm:p-7 md:grid-cols-[1.25fr_1fr] md:items-center">
-            <div className="flex flex-col gap-6">
+            <div className="flex min-w-0 flex-col gap-6">
               <div>
                 <div className="flex items-center gap-3">
                   <span className="chip cut-sm bg-red text-white">Round {w.round}</span>
@@ -65,7 +65,7 @@ export default async function Home() {
               </div>
               <NextSession weekend={w} />
             </div>
-            <TrackMap circuitId={w.circuitId} name={w.circuitName} className="mx-auto aspect-square w-full max-w-[380px]" />
+            <TrackMap circuitId={w.circuitId} name={w.circuitName} className="mx-auto aspect-square w-full max-w-[260px] md:max-w-[380px]" />
           </div>
         </section>
       ) : (

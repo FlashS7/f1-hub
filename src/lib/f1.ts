@@ -207,7 +207,23 @@ export async function getSessionResult(season: number, round: number, type: Roun
   return { positions, fastestLap: fl };
 }
 
+/**
+ * OpenF1 answers 401 to everyone without a paid key while ANY live session is running
+ * (even for past data). Treat that as "not available yet"; scoring retries later.
+ */
 async function getSprintQualifyingResult(season: number, round: number): Promise<SessionResult | null> {
+  try {
+    return await fetchSprintQualifyingResult(season, round);
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("401 ")) {
+      console.warn("OpenF1 locked during a live session; SQ result retried later");
+      return null;
+    }
+    throw e;
+  }
+}
+
+async function fetchSprintQualifyingResult(season: number, round: number): Promise<SessionResult | null> {
   const weekend = await getWeekend(season, round);
   const sq = weekend?.sessions.find((s) => s.key === "SQ");
   if (!sq) return null;

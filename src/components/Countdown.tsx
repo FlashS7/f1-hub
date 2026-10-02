@@ -24,7 +24,7 @@ function Unit({ value, label, pad = 2, size }: { value: number; label: string; p
     <div className="flex flex-col items-center">
       <div
         className={`cut-sm flex bg-surface-2 font-mono font-bold leading-none tabular text-text ${
-          size === "lg" ? "px-2 py-2.5 text-[40px] sm:px-3 sm:py-3 sm:text-[64px]" : "px-1.5 py-1 text-xl"
+          size === "lg" ? "px-1.5 py-2 text-[34px] min-[400px]:text-[40px] sm:px-3 sm:py-3 sm:text-[64px]" : "px-1.5 py-1 text-xl"
         }`}
       >
         {str.split("").map((c, i) => (
@@ -59,10 +59,10 @@ export function Countdown({ target, size = "lg", onZero }: { target: string; siz
   }, [left, onZero]);
 
   const p = parts(left ?? 0);
-  const sep = <span className={`self-start font-mono text-faint ${size === "lg" ? "pt-3 text-3xl sm:pt-5 sm:text-5xl" : "pt-1 text-lg"}`}>:</span>;
+  const sep = <span className={`self-start font-mono text-faint ${size === "lg" ? "pt-2.5 text-2xl sm:pt-5 sm:text-5xl" : "pt-1 text-lg"}`}>:</span>;
   return (
     <div
-      className={`flex items-start ${size === "lg" ? "gap-1.5 sm:gap-2.5" : "gap-1"} ${left === null ? "opacity-0" : "opacity-100 transition-opacity"}`}
+      className={`flex items-start ${size === "lg" ? "gap-1 sm:gap-2.5" : "gap-1"} ${left === null ? "opacity-0" : "opacity-100 transition-opacity"}`}
       role="timer"
       aria-label={left === null ? "Loading countdown" : `${p.d} days ${p.h} hours ${p.m} minutes ${p.s} seconds`}
     >

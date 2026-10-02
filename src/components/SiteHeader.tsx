@@ -25,7 +25,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-line/70 bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="group flex items-center gap-2.5" aria-label="F1 HUB home">
+        <Link href="/" className="group flex items-center gap-2.5" title="Home">
           <Mark className="h-5 w-auto text-text transition-transform duration-200 group-hover:translate-x-0.5" />
           <span className="display text-[26px] italic tracking-tight">
             F1<span className="text-red">/</span>HUB

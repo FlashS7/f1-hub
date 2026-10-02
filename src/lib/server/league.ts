@@ -3,7 +3,7 @@ import { getFeaturedWeekend, getGrid, getSchedule } from "../f1";
 import { buildLeaderboard, type LbScore } from "../leaderboard";
 import { isLocked, predictionRounds, roundStatus, type PredRound, type RoundStatus } from "../rounds";
 import { PredictionError, validatePrediction, type RoundScore } from "../scoring";
-import type { RoundType } from "../scoring.config";
+import { ROUND_ORDER, type RoundType } from "../scoring.config";
 import { TEAMS } from "../teams";
 import type { Weekend } from "../types";
 import { PIN_RE, hashPin, type PlayerRow } from "./auth";
@@ -214,6 +214,7 @@ export async function leagueView(leagueId: string) {
     byRound.set(s.round, h);
   }
   const history = [...byRound.values()].sort((a, b) => b.round - a.round);
+  for (const h of history) h.types.sort((a, b) => ROUND_ORDER.indexOf(a) - ROUND_ORDER.indexOf(b));
 
   return { season, weekend, players, leaderboard, rounds, history };
 }

@@ -257,12 +257,12 @@ export function PredictionEditor({
             </div>
           )}
         </div>
-        <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+        <ul className="grid grid-cols-4 gap-1 sm:gap-1.5">
           {grid.map((d) => {
             const t = team(d.teamId);
             const pos = picks.indexOf(d.id);
             const on = mode === "fl" ? fl === d.id : pos >= 0;
-            const color = mode === "fl" ? "#b44ff0" : t.color;
+            const color = mode === "fl" ? "#c46cf7" : t.color;
             return (
               <li key={d.id}>
                 <button
@@ -270,25 +270,25 @@ export function PredictionEditor({
                   disabled={locked}
                   aria-pressed={on}
                   aria-label={`${d.firstName} ${d.lastName}, ${t.name}${pos >= 0 ? `, picked P${pos + 1}` : ""}`}
-                  className={`cut-sm group relative flex h-[76px] w-full flex-col justify-between overflow-hidden p-2 text-left transition-[transform,background-color] duration-150 active:scale-95 ${
+                  className={`cut-sm group relative flex h-[58px] w-full flex-col justify-between overflow-hidden p-1.5 text-left transition-[transform,background-color] duration-150 active:scale-95 sm:h-[76px] sm:p-2 ${
                     on ? "" : "bg-surface-2 hover:bg-surface-3"
                   }`}
                   style={on ? { background: color, color: inkOn(color) } : undefined}
                 >
                   <span className="absolute inset-y-0 left-0 w-1" style={{ background: on ? "transparent" : t.color }} aria-hidden />
                   <span
-                    className="display pointer-events-none absolute -right-1 -top-2 text-[46px] italic opacity-[0.13]"
+                    className="display pointer-events-none absolute -right-1 -top-1.5 text-[34px] italic opacity-[0.13] sm:-top-2 sm:text-[46px]"
                     aria-hidden
                   >
                     {d.number}
                   </span>
                   <span className="pl-1.5 font-mono text-[13px] font-bold">{d.code}</span>
                   <span className="pl-1.5">
-                    <span className="block truncate text-[12px] font-bold uppercase leading-tight">{d.lastName}</span>
-                    <span className={`block truncate text-[10px] ${on ? "opacity-75" : "text-muted"}`}>{t.name}</span>
+                    <span className="block truncate text-[10px] font-bold uppercase leading-tight sm:text-[12px]">{d.lastName}</span>
+                    <span className={`hidden truncate text-[10px] sm:block ${on ? "opacity-75" : "text-muted"}`}>{t.name}</span>
                   </span>
                   {pos >= 0 && mode === "order" && (
-                    <span key={pos} className="pop display absolute right-1.5 top-1.5 bg-bg/85 px-1.5 text-[15px] italic text-text">
+                    <span key={pos} className="pop display absolute right-1 top-1 bg-bg/85 px-1 text-[13px] italic text-text sm:right-1.5 sm:top-1.5 sm:px-1.5 sm:text-[15px]">
                       P{pos + 1}
                     </span>
                   )}
@@ -299,6 +299,27 @@ export function PredictionEditor({
           })}
         </ul>
       </section>
+
+      {/* Phone: progress + save always in reach while scrolling the grid. */}
+      {dirty && !locked && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-xl items-center gap-3">
+            <div className="flex-1">
+              <div className="flex gap-0.5" aria-hidden>
+                {Array.from({ length: N }, (_, i) => (
+                  <span key={i} className={`h-1.5 flex-1 -skew-x-12 ${i < picks.length ? "bg-accent" : "bg-surface-3"}`} />
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                {picks.length}/{N} picked{isRace ? ` · FL ${fl ? byId.get(fl)?.code : "–"}` : ""}
+              </p>
+            </div>
+            <button className="btn-primary !px-4 !py-2.5" disabled={!complete || busy} onClick={save}>
+              {busy && <Loader2 size={15} className="animate-spin" aria-hidden />} Save
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
