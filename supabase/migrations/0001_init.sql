@@ -99,3 +99,11 @@ alter table session_results enable row level security;
 alter table round_scores enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
+revoke all on all sequences in schema public from anon, authenticated;
+revoke execute on function picks_distinct(text[]) from anon, authenticated;
+
+-- Only the server (service_role / secret key) gets access. Needed when
+-- "Automatically expose new tables" is off in the Supabase project settings.
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
