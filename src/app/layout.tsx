@@ -36,6 +36,7 @@ export const metadata: Metadata = {
     url: "/",
   },
   twitter: { card: "summary_large_image", title: "F1 HUB", description: SITE_DESCRIPTION },
+  verification: { google: "vKaxTYkPJ_NY-qlfXvydE1fqhp1_RKS1c9IfNLV7cKI" },
   applicationName: "F1 HUB",
   appleWebApp: { capable: true, title: "F1 HUB", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
