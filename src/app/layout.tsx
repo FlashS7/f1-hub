@@ -6,6 +6,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { Signature } from "@/components/Signature";
 import { SwRegister } from "@/components/SwRegister";
 import { TimezoneProvider } from "@/components/Timezone";
+import { SITE_DESCRIPTION, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const display = Barlow_Condensed({
@@ -20,8 +21,21 @@ const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin", "latin
 const script = Caveat({ variable: "--font-script", subsets: ["latin", "latin-ext"], weight: ["500"] });
 
 export const metadata: Metadata = {
-  title: { default: "F1 HUB", template: "%s · F1 HUB" },
-  description: "Race weekend hub and prediction league for friends.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "F1 HUB · Race weekend hub & F1 prediction league", template: "%s · F1 HUB" },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    "F1 prediction league", "F1 predictor", "Formula 1 predictions", "F1 prediction game with friends",
+    "F1 race weekend schedule", "F1 countdown", "F1 standings", "F1 tipovačka",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: "F1 HUB",
+    title: "F1 HUB · Race weekend hub & F1 prediction league",
+    description: SITE_DESCRIPTION,
+    url: "/",
+  },
+  twitter: { card: "summary_large_image", title: "F1 HUB", description: SITE_DESCRIPTION },
   applicationName: "F1 HUB",
   appleWebApp: { capable: true, title: "F1 HUB", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },

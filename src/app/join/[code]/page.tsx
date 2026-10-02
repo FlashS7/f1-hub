@@ -5,7 +5,7 @@ import { currentPlayer } from "@/lib/server/auth";
 import { dbConfigured } from "@/lib/server/db";
 import { getLeagueByCode, getPlayers } from "@/lib/server/league";
 
-export const metadata = { title: "Join league" };
+export const metadata = { title: "Join league", robots: { index: false } };
 
 export default async function Join({ params }: PageProps<"/join/[code]">) {
   if (!dbConfigured()) return <SetupNeeded />;

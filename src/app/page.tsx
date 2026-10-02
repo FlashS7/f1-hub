@@ -3,10 +3,25 @@ import { Flag } from "@/components/Flag";
 import { LastResult, StandingsPanel } from "@/components/Standings";
 import { TrackMap } from "@/components/TrackMap";
 import { NextSession, Schedule } from "@/components/WeekendPanel";
+import Link from "next/link";
 import { getConstructorStandings, getDriverStandings, getFeaturedWeekend, getLastRaceResult } from "@/lib/f1";
+import { SITE_DESCRIPTION, SITE_URL } from "@/lib/site";
 
 // Re-render at most every 5 minutes; Jolpica responses are cached separately.
 export const revalidate = 300;
+
+export const metadata = { alternates: { canonical: "/" } };
+
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "F1 HUB",
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+  applicationCategory: "SportsApplication",
+  operatingSystem: "Any",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+};
 
 const settle = async <T,>(p: Promise<T>): Promise<T | null> => {
   try {
@@ -89,6 +104,21 @@ export default async function Home() {
           </div>
         ) : null}
       </div>
+
+      <section aria-labelledby="about-h" className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+        <div className="flex-1">
+          <h2 id="about-h" className="display text-2xl italic">F1 prediction league for friends</h2>
+          <p className="mt-2 max-w-prose text-sm text-muted">
+            Predict the top 10 of every qualifying, sprint qualifying, sprint and race. Each round locks when the session starts and is
+            scored automatically from the official results. Free, no sign-up: create a league, share the link, pick a nickname and PIN.
+          </p>
+        </div>
+        <Link href="/league" className="btn-primary shrink-0">
+          Start a league
+        </Link>
+      </section>
+
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
     </div>
   );
 }

@@ -5,6 +5,9 @@ import { currentPlayer } from "@/lib/server/auth";
 import { dbConfigured } from "@/lib/server/db";
 import { getLeague } from "@/lib/server/league";
 
+// Private league pages stay out of search results.
+export const metadata = { robots: { index: false, follow: false } };
+
 export default async function LeagueLayout({ children, params }: LayoutProps<"/league/[id]">) {
   if (!dbConfigured()) return <SetupNeeded />;
   const { id } = await params;
