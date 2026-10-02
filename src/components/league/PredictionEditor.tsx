@@ -75,7 +75,6 @@ function SortableRow({
 }
 
 export function PredictionEditor({
-  leagueId,
   season,
   round,
   type,
@@ -83,7 +82,6 @@ export function PredictionEditor({
   grid,
   initial,
 }: {
-  leagueId: string;
   season: number;
   round: number;
   type: RoundType;
@@ -143,7 +141,7 @@ export function PredictionEditor({
     setBusy(true);
     setError("");
     try {
-      await api(`/api/leagues/${leagueId}/predictions`, "PUT", { season, round, type, picks, fastestLap: isRace ? fl : null });
+      await api("/api/picks", "PUT", { season, round, type, picks, fastestLap: isRace ? fl : null });
       setSaved(JSON.stringify({ p: picks, f: isRace ? fl : null }));
       router.refresh();
     } catch (e) {

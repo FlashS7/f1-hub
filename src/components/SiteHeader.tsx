@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gauge, Trophy } from "lucide-react";
+import { Gauge, Trophy, User } from "lucide-react";
 
 const NAV = [
   { href: "/", label: "Hub", icon: Gauge, match: (p: string) => p === "/" },
-  { href: "/league", label: "League", icon: Trophy, match: (p: string) => p.startsWith("/league") || p.startsWith("/join") },
+  {
+    href: "/league",
+    label: "League",
+    icon: Trophy,
+    match: (p: string) => p.startsWith("/league") || p.startsWith("/join") || p.startsWith("/predict"),
+  },
+  { href: "/profile", label: "Me", icon: User, match: (p: string) => p.startsWith("/profile") },
 ];
 
 export function Mark({ className = "" }: { className?: string }) {
@@ -27,12 +33,12 @@ export function SiteHeader() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5" title="Home">
           <Mark className="h-5 w-auto text-text transition-transform duration-200 group-hover:translate-x-0.5" />
-          <span className="display text-[26px] italic tracking-tight">
+          <span className="display text-[24px] italic tracking-tight sm:text-[26px]">
             F1<span className="text-red">/</span>HUB
           </span>
         </Link>
         <nav aria-label="Main">
-          <ul className="flex items-center gap-1">
+          <ul className="flex items-center gap-0.5 sm:gap-1">
             {NAV.map(({ href, label, icon: Icon, match }) => {
               const active = match(path);
               return (
@@ -40,7 +46,7 @@ export function SiteHeader() {
                   <Link
                     href={href}
                     aria-current={active ? "page" : undefined}
-                    className={`cut-sm relative flex items-center gap-2 px-3 py-2 text-[15px] font-bold uppercase tracking-[0.12em] transition-colors ${
+                    className={`cut-sm relative flex items-center gap-1.5 px-2.5 py-2 text-[14px] sm:gap-2 sm:px-3 sm:text-[15px] font-bold uppercase tracking-[0.12em] transition-colors ${
                       active ? "bg-surface-2 text-text" : "text-muted hover:bg-surface hover:text-text"
                     }`}
                     style={{ fontFamily: "var(--font-display)" }}

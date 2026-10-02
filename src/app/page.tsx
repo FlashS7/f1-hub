@@ -3,6 +3,8 @@ import { Flag } from "@/components/Flag";
 import { LastResult, StandingsPanel } from "@/components/Standings";
 import { TrackMap } from "@/components/TrackMap";
 import { NextSession, Schedule } from "@/components/WeekendPanel";
+import { PredictStrip } from "@/components/PredictStrip";
+import { predictionRounds } from "@/lib/rounds";
 import Link from "next/link";
 import { getConstructorStandings, getDriverStandings, getFeaturedWeekend, getLastRaceResult } from "@/lib/f1";
 import { SITE_DESCRIPTION, SITE_URL } from "@/lib/site";
@@ -95,6 +97,8 @@ export default async function Home() {
         )
       )}
 
+      {w && predictionRounds(w).length > 0 && <PredictStrip rounds={predictionRounds(w)} />}
+
       <div className="grid gap-5 lg:grid-cols-2">
         {w && <Schedule weekend={w} />}
         <LastResult result={last} />
@@ -105,18 +109,20 @@ export default async function Home() {
         ) : null}
       </div>
 
-      <section aria-labelledby="about-h" className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
-        <div className="flex-1">
-          <h2 id="about-h" className="display text-2xl italic">F1 prediction league for friends</h2>
-          <p className="mt-2 max-w-prose text-sm text-muted">
-            Predict the top 10 of every qualifying, sprint qualifying, sprint and race. Each round locks when the session starts and is
-            scored automatically from the official results. Free, no sign-up: create a league, share the link, pick a nickname and PIN.
-          </p>
-        </div>
-        <Link href="/league" className="btn-primary shrink-0">
-          Start a league
-        </Link>
-      </section>
+      {!w && (
+        <section aria-labelledby="about-h" className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+          <div className="flex-1">
+            <h2 id="about-h" className="display text-2xl italic">F1 prediction league</h2>
+            <p className="mt-2 max-w-prose text-sm text-muted">
+              Predict the top 10 of every qualifying, sprint qualifying, sprint and race, in the global league or a private one with
+              friends. Free, no sign-up: pick a nickname and PIN.
+            </p>
+          </div>
+          <Link href="/league" className="btn-primary shrink-0">
+            See the leaderboard
+          </Link>
+        </section>
+      )}
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
     </div>

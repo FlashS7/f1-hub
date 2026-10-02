@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check, Loader2, RefreshCw, Share2 } from "lucide-react";
+import { Check, Loader2, LogOut, RefreshCw, Share2 } from "lucide-react";
 import { api } from "./forms";
 
 export function InviteBox({ code }: { code: string }) {
@@ -31,7 +31,32 @@ export function InviteBox({ code }: { code: string }) {
   );
 }
 
-/** League owner only. The server re-checks ownership; this just hides it from others. */
+export function LeaveLeagueButton({ leagueId }: { leagueId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      className="btn-ghost !px-3 !py-2 text-sm text-red"
+      disabled={busy}
+      onClick={async () => {
+        if (!confirm("Leave this league? Your picks stay and keep counting in your other leagues.")) return;
+        setBusy(true);
+        try {
+          await api(`/api/leagues/${leagueId}/leave`, "POST");
+          router.push("/league");
+          router.refresh();
+        } catch (e) {
+          alert(e instanceof Error ? e.message : "Failed");
+          setBusy(false);
+        }
+      }}
+    >
+      <LogOut size={15} aria-hidden /> Leave league
+    </button>
+  );
+}
+
+/** League owner / admin only. The server re-checks; this just hides it from others. */
 export function RecalcButton({ leagueId, season, round }: { leagueId: string; season: number; round: number }) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");

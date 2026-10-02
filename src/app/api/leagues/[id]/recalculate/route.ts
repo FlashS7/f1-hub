@@ -1,14 +1,14 @@
-import { currentPlayer } from "@/lib/server/auth";
+import { currentProfile } from "@/lib/server/auth";
 import { body, handle } from "@/lib/server/http";
-import { UserError, getLeague } from "@/lib/server/league";
+import { UserError, canManage, getLeague } from "@/lib/server/league";
 import { rescoreWeekend } from "@/lib/server/scoring-runner";
 
-/** "Recalculate weekend": league owner only, enforced here. */
+/** "Recalculate weekend": league owner (or the admin) only, enforced here. */
 export const POST = handle(async (req: Request, ctx: RouteContext<"/api/leagues/[id]/recalculate">) => {
   const { id } = await ctx.params;
-  const [league, player] = await Promise.all([getLeague(id), currentPlayer(id)]);
+  const [league, me] = await Promise.all([getLeague(id), currentProfile()]);
   if (!league) throw new UserError("League not found", 404);
-  if (!player || league.owner_player_id !== player.id) throw new UserError("Only the league owner can recalculate", 403);
+  if (!canManage(league, me)) throw new UserError("Only the league owner can recalculate", 403);
   const b = await body(req);
   const season = Number(b.season);
   const round = Number(b.round);

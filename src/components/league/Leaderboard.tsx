@@ -29,7 +29,7 @@ function Movement({ n }: { n: number }) {
 }
 
 /** Season leaderboard as a broadcast timing tower. */
-export function Leaderboard({ rows, leagueId, meId }: { rows: LbRow[]; leagueId: string; meId: string }) {
+export function Leaderboard({ rows, leagueId, meId }: { rows: LbRow[]; leagueId: string; meId: string | null }) {
   return (
     <section aria-labelledby="lb-h" className="panel overflow-hidden">
       <div className="flex items-end justify-between bg-surface-2 px-4 py-3">

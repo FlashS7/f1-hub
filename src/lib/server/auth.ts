@@ -27,18 +27,18 @@ export async function verifyPin(pin: string, stored: string): Promise<boolean> {
 
 export const PIN_LIMIT = { perNickname: 5, perIp: 20, windowMin: 15 };
 
-export async function pinAttemptsExceeded(leagueId: string, nickname: string, ip: string): Promise<boolean> {
+export async function loginAttemptsExceeded(nickname: string, ip: string): Promise<boolean> {
   const since = new Date(Date.now() - PIN_LIMIT.windowMin * 60_000).toISOString();
   const [byNick, byIp] = await Promise.all([
-    db().from("pin_attempts").select("id", { count: "exact", head: true })
-      .eq("league_id", leagueId).eq("nickname_lower", nickname.toLowerCase()).gte("created_at", since),
-    db().from("pin_attempts").select("id", { count: "exact", head: true }).eq("ip", ip).gte("created_at", since),
+    db().from("login_attempts").select("id", { count: "exact", head: true })
+      .eq("nickname_lower", nickname.toLowerCase()).gte("created_at", since),
+    db().from("login_attempts").select("id", { count: "exact", head: true }).eq("ip", ip).gte("created_at", since),
   ]);
   return (byNick.count ?? 0) >= PIN_LIMIT.perNickname || (byIp.count ?? 0) >= PIN_LIMIT.perIp;
 }
 
-export async function recordFailedPin(leagueId: string, nickname: string, ip: string) {
-  must(await db().from("pin_attempts").insert({ league_id: leagueId, nickname_lower: nickname.toLowerCase(), ip }));
+export async function recordFailedLogin(nickname: string, ip: string) {
+  must(await db().from("login_attempts").insert({ nickname_lower: nickname.toLowerCase(), ip }));
 }
 
 export function clientIp(req: Request): string {
@@ -48,13 +48,15 @@ export function clientIp(req: Request): string {
 /* ---------- device tokens ---------- */
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
-export const cookieName = (leagueId: string) => `f1h_${leagueId.replace(/-/g, "")}`;
+export const COOKIE = "f1h_p";
+/** v1 used one cookie per league (f1h_<leagueId>); their tokens were carried over, so they still log you in. */
+const isAuthCookie = (name: string) => name === COOKIE || /^f1h_[0-9a-f]{32}$/.test(name);
 
-/** Creates a device token for the player and sets it as an httpOnly cookie. Route handlers only. */
-export async function issueDeviceToken(playerId: string, leagueId: string) {
+/** Creates a device token for the profile and sets it as an httpOnly cookie. Route handlers only. */
+export async function issueDeviceToken(profileId: string) {
   const token = randomBytes(32).toString("base64url");
-  must(await db().from("player_devices").insert({ token_hash: sha256(token), player_id: playerId }));
-  (await cookies()).set(cookieName(leagueId), token, {
+  must(await db().from("profile_devices").insert({ token_hash: sha256(token), profile_id: profileId }));
+  (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -63,42 +65,34 @@ export async function issueDeviceToken(playerId: string, leagueId: string) {
   });
 }
 
-export async function forgetDevice(leagueId: string) {
+export async function forgetDevice() {
   const store = await cookies();
-  const token = store.get(cookieName(leagueId))?.value;
-  if (token) await db().from("player_devices").delete().eq("token_hash", sha256(token));
-  store.delete(cookieName(leagueId));
+  const tokens = store.getAll().filter((c) => isAuthCookie(c.name));
+  if (tokens.length) {
+    await db().from("profile_devices").delete().in("token_hash", tokens.map((c) => sha256(c.value)));
+  }
+  for (const c of tokens) store.delete(c.name);
 }
 
-export interface PlayerRow {
+export interface Profile {
   id: string;
-  league_id: string;
   nickname: string;
   team_id: string;
+  is_admin: boolean;
   created_at: string;
 }
 
-/** The player this device is logged in as for the league, or null. */
-export async function currentPlayer(leagueId: string): Promise<PlayerRow | null> {
-  const token = (await cookies()).get(cookieName(leagueId))?.value;
-  if (!token) return null;
-  const { data } = await db()
-    .from("player_devices")
-    .select("player_id, players!inner(id, league_id, nickname, team_id, created_at)")
-    .eq("token_hash", sha256(token))
-    .maybeSingle();
-  const p = (data?.players ?? null) as unknown as PlayerRow | null;
-  if (!p || p.league_id !== leagueId) return null;
-  return p;
-}
+export const PROFILE_COLS = "id, nickname, team_id, is_admin, created_at";
 
-/** League ids this device has a token cookie for (validated lazily by currentPlayer). */
-export async function deviceLeagueIds(): Promise<string[]> {
-  return (await cookies())
-    .getAll()
-    .filter((c) => c.name.startsWith("f1h_") && c.name.length === 36)
-    .map((c) => {
-      const h = c.name.slice(4);
-      return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-    });
+/** The profile this device is logged in as, or null. */
+export async function currentProfile(): Promise<Profile | null> {
+  const store = await cookies();
+  const tokens = store.getAll().filter((c) => isAuthCookie(c.name)).map((c) => sha256(c.value));
+  if (!tokens.length) return null;
+  const { data } = await db()
+    .from("profile_devices")
+    .select(`profile_id, profiles!inner(${PROFILE_COLS})`)
+    .in("token_hash", tokens)
+    .limit(1);
+  return ((data?.[0]?.profiles ?? null) as unknown as Profile | null) ?? null;
 }

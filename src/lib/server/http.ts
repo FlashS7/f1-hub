@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
+import { currentProfile } from "./auth";
 import { UserError } from "./league";
+
+export async function requireProfile() {
+  const p = await currentProfile();
+  if (!p) throw new UserError("Create a profile or log in first", 401);
+  return p;
+}
 
 /** Wraps a route handler: UserError -> its status + message, anything else -> 500. */
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<unknown>) {
