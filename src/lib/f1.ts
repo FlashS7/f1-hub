@@ -37,6 +37,30 @@ async function getJson(url: string, revalidate: number | false): Promise<any> {
   return res.json();
 }
 
+/** OpenF1's free tier allows ~3 requests/s: space calls out and retry a 429 a few times. */
+let openF1Queue: Promise<unknown> = Promise.resolve();
+function openF1(path: string): Promise<any> {
+  const run = async () => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await getJson(`${OPENF1}/${path}`, false);
+      } catch (e) {
+        if (attempt < 3 && e instanceof Error && e.message.startsWith("429 ")) {
+          await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+          continue;
+        }
+        throw e;
+      }
+    }
+  };
+  const p = openF1Queue.then(run, run);
+  openF1Queue = p.then(
+    () => new Promise((r) => setTimeout(r, 400)),
+    () => new Promise((r) => setTimeout(r, 400)),
+  );
+  return p;
+}
+
 const jolpica = (path: string, revalidate: number | false) => getJson(`${JOLPICA}/${path}`, revalidate);
 
 /* ---------- mappers ---------- */
@@ -183,13 +207,27 @@ export async function getGrid(): Promise<Driver[]> {
 
 /* ---------- session results for scoring ---------- */
 
+const OPENF1_SESSION: Record<RoundType, string> = {
+  SQ: "Sprint Qualifying", SPRINT: "Sprint", QUALI: "Qualifying", RACE: "Race",
+};
+
 /**
  * Official result for a prediction round. Null when it isn't published yet.
- * Always bypasses the cache so penalties/DSQ changes come through.
+ * Jolpica first (it carries penalties and the fastest lap); it can lag hours behind, so OpenF1 fills in.
+ * Sprint Qualifying only exists in OpenF1. Always bypasses the cache so late changes come through.
  */
 export async function getSessionResult(season: number, round: number, type: RoundType): Promise<SessionResult | null> {
-  if (type === "SQ") return getSprintQualifyingResult(season, round);
+  if (type !== "SQ") {
+    const fromJolpica = await getJolpicaResult(season, round, type).catch((e) => {
+      console.warn("Jolpica result failed", e);
+      return null;
+    });
+    if (fromJolpica) return fromJolpica;
+  }
+  return getOpenF1Result(season, round, type);
+}
 
+async function getJolpicaResult(season: number, round: number, type: Exclude<RoundType, "SQ">): Promise<SessionResult | null> {
   const path = { RACE: "results", SPRINT: "sprint", QUALI: "qualifying" }[type];
   const j = await jolpica(`${season}/${round}/${path}.json?limit=100`, false);
   const r = j.MRData.RaceTable.Races[0];
@@ -211,31 +249,33 @@ export async function getSessionResult(season: number, round: number, type: Roun
  * OpenF1 answers 401 to everyone without a paid key while ANY live session is running
  * (even for past data). Treat that as "not available yet"; scoring retries later.
  */
-async function getSprintQualifyingResult(season: number, round: number): Promise<SessionResult | null> {
+export async function getOpenF1Result(season: number, round: number, type: RoundType): Promise<SessionResult | null> {
   try {
-    return await fetchSprintQualifyingResult(season, round);
+    return await fetchOpenF1Result(season, round, type);
   } catch (e) {
     if (e instanceof Error && e.message.startsWith("401 ")) {
-      console.warn("OpenF1 locked during a live session; SQ result retried later");
+      console.warn("OpenF1 locked during a live session; result retried later");
       return null;
     }
     throw e;
   }
 }
 
-async function fetchSprintQualifyingResult(season: number, round: number): Promise<SessionResult | null> {
+async function fetchOpenF1Result(season: number, round: number, type: RoundType): Promise<SessionResult | null> {
   const weekend = await getWeekend(season, round);
-  const sq = weekend?.sessions.find((s) => s.key === "SQ");
-  if (!sq) return null;
+  const session = weekend?.sessions.find((s) => s.key === type);
+  if (!session) return null;
 
-  const sessions: any[] = await getJson(`${OPENF1}/sessions?year=${season}&session_name=Sprint%20Qualifying`, false);
-  const target = new Date(sq.start).getTime();
+  // Match by start time: OpenF1 names meetings differently (e.g. "Bahrain" for the race held in Malaysia).
+  const sessions: any[] = await openF1(`sessions?year=${season}&session_name=${encodeURIComponent(OPENF1_SESSION[type])}`).catch(notFoundAsEmpty);
+  const target = new Date(session.start).getTime();
   const match = sessions.find((s) => Math.abs(new Date(s.date_start).getTime() - target) < 36 * 3600_000);
   if (!match) return null;
+  const key = match.session_key;
 
   const [results, drivers, seasonDrivers] = await Promise.all([
-    getJson(`${OPENF1}/session_result?session_key=${match.session_key}`, false) as Promise<any[]>,
-    getJson(`${OPENF1}/drivers?session_key=${match.session_key}`, false) as Promise<any[]>,
+    openF1(`session_result?session_key=${key}`).catch(notFoundAsEmpty) as Promise<any[]>,
+    openF1(`drivers?session_key=${key}`).catch(notFoundAsEmpty) as Promise<any[]>,
     jolpica(`${season}/drivers.json?limit=100`, CACHE.schedule),
   ]);
   if (!results.length) return null;
@@ -244,11 +284,30 @@ async function fetchSprintQualifyingResult(season: number, round: number): Promi
   const codeToId = new Map(
     (seasonDrivers.MRData.DriverTable.Drivers as any[]).map((d) => [d.code as string, d.driverId as string]),
   );
+  const idOf = (num: unknown) => codeToId.get(numToCode.get(Number(num)) ?? "");
+
   const positions: Record<string, number> = {};
   for (const r of results) {
-    if (r.position == null || r.dsq || r.dns) continue;
-    const id = codeToId.get(numToCode.get(Number(r.driver_number)) ?? "");
+    // Disqualified never scores. In qualifying a non-starter still gets a grid slot; in a race they don't.
+    if (r.position == null || r.dsq) continue;
+    if (r.dns && (type === "RACE" || type === "SPRINT")) continue;
+    const id = idOf(r.driver_number);
     if (id) positions[id] = Number(r.position);
   }
-  return Object.keys(positions).length ? { positions, fastestLap: null } : null;
+  if (!Object.keys(positions).length) return null;
+
+  let fastestLap: string | null = null;
+  if (type === "RACE") {
+    const laps: any[] = await openF1(`laps?session_key=${key}`).catch(notFoundAsEmpty);
+    let best: any = null;
+    for (const l of laps) if (l.lap_duration && (!best || l.lap_duration < best.lap_duration)) best = l;
+    fastestLap = best ? idOf(best.driver_number) ?? null : null;
+  }
+  return { positions, fastestLap };
+}
+
+/** OpenF1 answers 404 "No results found" for empty queries. */
+function notFoundAsEmpty(e: unknown): any[] {
+  if (e instanceof Error && e.message.startsWith("404 ")) return [];
+  throw e;
 }
