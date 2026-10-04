@@ -4,6 +4,7 @@ import { InstallHint } from "@/components/InstallHint";
 import { LightsOut } from "@/components/LightsOut";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Signature } from "@/components/Signature";
+import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { SwRegister } from "@/components/SwRegister";
 import { TimezoneProvider } from "@/components/Timezone";
 import { SITE_DESCRIPTION, SITE_URL } from "@/lib/site";
@@ -76,6 +77,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Signature />
           <LightsOut />
           <SwRegister />
+          <SiteAnalytics />
         </TimezoneProvider>
       </body>
     </html>

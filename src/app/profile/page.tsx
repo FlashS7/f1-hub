@@ -1,10 +1,12 @@
+import Link from "next/link";
+import { ChevronRight, Shield } from "lucide-react";
 import { Accent } from "@/components/Accent";
 import { ProfileGate } from "@/components/league/forms";
 import { ProfileEdit } from "@/components/league/ProfileEdit";
 import { PlayerStats } from "@/components/league/Stats";
 import { PageTitle, SetupNeeded } from "@/components/league/ui";
 import { currentProfile } from "@/lib/server/auth";
-import { dbConfigured } from "@/lib/server/db";
+import { db, dbConfigured } from "@/lib/server/db";
 import { getGlobalLeague, profileStats } from "@/lib/server/league";
 import { team } from "@/lib/teams";
 
@@ -23,7 +25,10 @@ export default async function ProfilePage() {
     );
   }
   const global = await getGlobalLeague();
-  const stats = global ? await profileStats(global, me.id) : null;
+  const [stats, newFeedback] = await Promise.all([
+    global ? profileStats(global, me.id) : null,
+    me.is_admin ? db().from("feedback").select("id", { count: "exact", head: true }).eq("status", "new").then((r) => r.count ?? 0) : 0,
+  ]);
   const t = team(me.team_id);
 
   return (
@@ -39,6 +44,17 @@ export default async function ProfilePage() {
           }
           title={me.nickname}
         />
+        {me.is_admin && (
+          <Link href="/admin" className="panel group flex items-center gap-3 border-l-2 border-yellow p-4 transition-colors hover:bg-surface-2">
+            <Shield size={18} className="text-yellow" aria-hidden />
+            <span className="flex-1">
+              <span className="display block text-xl">Admin dashboard</span>
+              <span className="text-xs text-muted">Players, picks and feedback</span>
+            </span>
+            {newFeedback > 0 && <span className="chip cut-sm bg-red text-white">{newFeedback} new</span>}
+            <ChevronRight size={16} className="text-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </Link>
+        )}
         {stats && (
           <>
             <p className="eyebrow -mb-2">Global league</p>

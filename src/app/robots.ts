@@ -4,7 +4,7 @@ import { SITE_URL } from "@/lib/site";
 export default function robots(): MetadataRoute.Robots {
   return {
     // Public pages are indexable; private league pages and the API are not.
-    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/league/", "/join/"] },
+    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/league/", "/join/", "/admin", "/predict/", "/profile"] },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }
