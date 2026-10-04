@@ -42,7 +42,24 @@ function Tabs<T extends string>({ value, options, onChange, label }: { value: T;
   );
 }
 
-export function StandingsPanel({ drivers, constructors }: { drivers: DriverStanding[]; constructors: ConstructorStanding[] }) {
+function ProvisionalNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-2 flex items-center gap-1.5 text-[11px] text-faint">
+      <span className="chip cut-sm bg-yellow/15 !px-1.5 !py-0 text-yellow">Provisional</span>
+      {children}
+    </p>
+  );
+}
+
+export function StandingsPanel({
+  drivers,
+  constructors,
+  provisionalRounds = [],
+}: {
+  drivers: DriverStanding[];
+  constructors: ConstructorStanding[];
+  provisionalRounds?: number[];
+}) {
   const [tab, setTab] = useState<"drivers" | "teams">("drivers");
   const [all, setAll] = useState(false);
   const leaderPts = tab === "drivers" ? drivers[0]?.points ?? 0 : constructors[0]?.points ?? 0;
@@ -55,6 +72,9 @@ export function StandingsPanel({ drivers, constructors }: { drivers: DriverStand
         <h2 id="stand-h" className="display text-2xl">Championship</h2>
         <Tabs label="Standings type" value={tab} onChange={(v) => { setTab(v); setAll(false); }} options={[["drivers", "Drivers"], ["teams", "Teams"]]} />
       </div>
+      {provisionalRounds.length > 0 && (
+        <ProvisionalNote>Includes Round {provisionalRounds.join(", ")} before the official update.</ProvisionalNote>
+      )}
       <div className="racing-line mt-3" />
       {rows.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted">No standings yet this season.</p>
@@ -102,6 +122,7 @@ export function LastResult({ result }: { result: RaceResult | null }) {
     <section aria-labelledby="last-h" className="panel p-4 sm:p-5">
       <p className="eyebrow">Last race · Round {result?.round ?? "–"}</p>
       <h2 id="last-h" className="display mt-1 text-2xl">{result?.name ?? "No results yet"}</h2>
+      {result?.provisional && <ProvisionalNote>Live timing result. Official classification follows.</ProvisionalNote>}
       <div className="racing-line mt-3" />
       {result && (
         <ol className="stagger mt-1">

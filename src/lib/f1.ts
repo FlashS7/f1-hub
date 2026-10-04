@@ -39,11 +39,11 @@ async function getJson(url: string, revalidate: number | false): Promise<any> {
 
 /** OpenF1's free tier allows ~3 requests/s: space calls out and retry a 429 a few times. */
 let openF1Queue: Promise<unknown> = Promise.resolve();
-function openF1(path: string): Promise<any> {
+function openF1(path: string, revalidate: number | false = false): Promise<any> {
   const run = async () => {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await getJson(`${OPENF1}/${path}`, false);
+        return await getJson(`${OPENF1}/${path}`, revalidate);
       } catch (e) {
         if (attempt < 3 && e instanceof Error && e.message.startsWith("429 ")) {
           await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
@@ -143,7 +143,7 @@ export async function getFeaturedWeekend(now = new Date()): Promise<{ weekend: W
 
 /* ---------- standings & results ---------- */
 
-export async function getDriverStandings(season: number | "current" = "current"): Promise<DriverStanding[]> {
+export async function getDriverStandings(season: number | string = "current"): Promise<DriverStanding[]> {
   const j = await jolpica(`${season}/driverstandings.json?limit=100`, CACHE.standings);
   const list = j.MRData.StandingsTable.StandingsLists[0];
   if (!list) return [];
@@ -155,7 +155,7 @@ export async function getDriverStandings(season: number | "current" = "current")
   }));
 }
 
-export async function getConstructorStandings(season: number | "current" = "current"): Promise<ConstructorStanding[]> {
+export async function getConstructorStandings(season: number | string = "current"): Promise<ConstructorStanding[]> {
   const j = await jolpica(`${season}/constructorstandings.json?limit=100`, CACHE.standings);
   const list = j.MRData.StandingsTable.StandingsLists[0];
   if (!list) return [];
@@ -261,21 +261,22 @@ export async function getOpenF1Result(season: number, round: number, type: Round
   }
 }
 
-async function fetchOpenF1Result(season: number, round: number, type: RoundType): Promise<SessionResult | null> {
+/** One OpenF1 session's classification, with driver numbers mapped to Jolpica driverIds. Null if not found/empty. */
+async function openF1Session(season: number, round: number, type: RoundType, revalidate: number | false = false) {
   const weekend = await getWeekend(season, round);
   const session = weekend?.sessions.find((s) => s.key === type);
   if (!session) return null;
 
   // Match by start time: OpenF1 names meetings differently (e.g. "Bahrain" for the race held in Malaysia).
-  const sessions: any[] = await openF1(`sessions?year=${season}&session_name=${encodeURIComponent(OPENF1_SESSION[type])}`).catch(notFoundAsEmpty);
+  const sessions: any[] = await openF1(`sessions?year=${season}&session_name=${encodeURIComponent(OPENF1_SESSION[type])}`, revalidate).catch(notFoundAsEmpty);
   const target = new Date(session.start).getTime();
   const match = sessions.find((s) => Math.abs(new Date(s.date_start).getTime() - target) < 36 * 3600_000);
   if (!match) return null;
   const key = match.session_key;
 
   const [results, drivers, seasonDrivers] = await Promise.all([
-    openF1(`session_result?session_key=${key}`).catch(notFoundAsEmpty) as Promise<any[]>,
-    openF1(`drivers?session_key=${key}`).catch(notFoundAsEmpty) as Promise<any[]>,
+    openF1(`session_result?session_key=${key}`, revalidate).catch(notFoundAsEmpty) as Promise<any[]>,
+    openF1(`drivers?session_key=${key}`, revalidate).catch(notFoundAsEmpty) as Promise<any[]>,
     jolpica(`${season}/drivers.json?limit=100`, CACHE.schedule),
   ]);
   if (!results.length) return null;
@@ -285,6 +286,20 @@ async function fetchOpenF1Result(season: number, round: number, type: RoundType)
     (seasonDrivers.MRData.DriverTable.Drivers as any[]).map((d) => [d.code as string, d.driverId as string]),
   );
   const idOf = (num: unknown) => codeToId.get(numToCode.get(Number(num)) ?? "");
+  return { key, results, idOf, weekend: weekend! };
+}
+
+async function openF1FastestLap(key: number, idOf: (n: unknown) => string | undefined, revalidate: number | false = false): Promise<string | null> {
+  const laps: any[] = await openF1(`laps?session_key=${key}`, revalidate).catch(notFoundAsEmpty);
+  let best: any = null;
+  for (const l of laps) if (l.lap_duration && (!best || l.lap_duration < best.lap_duration)) best = l;
+  return best ? idOf(best.driver_number) ?? null : null;
+}
+
+async function fetchOpenF1Result(season: number, round: number, type: RoundType): Promise<SessionResult | null> {
+  const s = await openF1Session(season, round, type);
+  if (!s) return null;
+  const { key, results, idOf } = s;
 
   const positions: Record<string, number> = {};
   for (const r of results) {
@@ -296,14 +311,124 @@ async function fetchOpenF1Result(season: number, round: number, type: RoundType)
   }
   if (!Object.keys(positions).length) return null;
 
-  let fastestLap: string | null = null;
-  if (type === "RACE") {
-    const laps: any[] = await openF1(`laps?session_key=${key}`).catch(notFoundAsEmpty);
-    let best: any = null;
-    for (const l of laps) if (l.lap_duration && (!best || l.lap_duration < best.lap_duration)) best = l;
-    fastestLap = best ? idOf(best.driver_number) ?? null : null;
-  }
+  const fastestLap = type === "RACE" ? await openF1FastestLap(key, idOf) : null;
   return { positions, fastestLap };
+}
+
+/* ---------- hub: latest race + standings, filling Jolpica's lag with OpenF1 ---------- */
+
+/** Weekends whose race finished at least `graceMin` ago, in calendar order. */
+function finishedWeekends(schedule: Weekend[], now = Date.now(), graceMin = 20) {
+  return schedule.filter((w) => {
+    const race = w.sessions.find((s) => s.key === "RACE");
+    return race && new Date(race.end).getTime() + graceMin * 60_000 < now;
+  });
+}
+
+function fmtDuration(sec: number) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = (sec % 60).toFixed(3).padStart(6, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+/**
+ * Last race result for the hub. Jolpica can be hours behind; if the latest finished race is missing there,
+ * build it from OpenF1 and mark it provisional.
+ */
+export async function getLatestRaceResult(): Promise<RaceResult | null> {
+  const official = await getLastRaceResult("current").catch(() => null);
+  const schedule = await getSchedule("current").catch(() => [] as Weekend[]);
+  const latest = finishedWeekends(schedule).at(-1);
+  if (!latest || (official && official.round >= latest.round)) return official;
+  try {
+    const s = await openF1Session(latest.season, latest.round, "RACE", CACHE.results);
+    if (!s) return official;
+    const grid = new Map((await getGrid()).map((d) => [d.id, d]));
+    const fl = await openF1FastestLap(s.key, s.idOf, CACHE.results);
+    const rows: ResultRow[] = [...s.results]
+      .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
+      .flatMap((r) => {
+        const id = s.idOf(r.driver_number);
+        const driver = id ? grid.get(id) : undefined;
+        if (!driver) return [];
+        const out = r.dsq ? "DSQ" : r.dns ? "DNS" : r.dnf && r.position == null ? "DNF" : null;
+        const gap = r.gap_to_leader;
+        return [{
+          position: out ? null : r.position,
+          positionText: out ?? String(r.position),
+          driver,
+          status: out ?? (r.dnf ? "Retired" : "Finished"),
+          points: Number(r.points ?? 0),
+          time: out ? undefined : r.position === 1 && r.duration ? fmtDuration(r.duration) : typeof gap === "number" ? `+${gap.toFixed(3)}s` : gap ?? undefined,
+          fastestLapRank: id === fl ? 1 : undefined,
+        }];
+      });
+    return { season: latest.season, round: latest.round, name: latest.name, rows, provisional: true };
+  } catch (e) {
+    console.warn("provisional result failed", e);
+    return official;
+  }
+}
+
+export interface Standings {
+  drivers: DriverStanding[];
+  constructors: ConstructorStanding[];
+  /** Rounds whose points come from OpenF1 because Jolpica hasn't published them yet. */
+  provisionalRounds: number[];
+}
+
+/**
+ * Championship standings: Jolpica's official table after the last race it has results for,
+ * plus race and sprint points from OpenF1 for any later finished weekends (marked provisional).
+ */
+export async function getStandings(): Promise<Standings> {
+  const official = await getLastRaceResult("current").catch(() => null);
+  const schedule = await getSchedule("current").catch(() => [] as Weekend[]);
+  const season = schedule[0]?.season ?? new Date().getUTCFullYear();
+  const base = official ? `${season}/${official.round}` : "current";
+  const [drivers, constructors] = await Promise.all([getDriverStandings(base), getConstructorStandings(base)]);
+
+  const later = finishedWeekends(schedule).filter((w) => w.round > (official?.round ?? 0));
+  if (!later.length) return { drivers, constructors, provisionalRounds: [] };
+
+  try {
+    const grid = new Map((await getGrid()).map((d) => [d.id, d]));
+    const dMap = new Map(drivers.map((d) => [d.driver.id, { ...d }]));
+    const cMap = new Map(constructors.map((c) => [c.teamId, { ...c }]));
+    const done: number[] = [];
+    for (const w of later) {
+      for (const type of (w.isSprint ? ["SPRINT", "RACE"] : ["RACE"]) as RoundType[]) {
+        const s = await openF1Session(w.season, w.round, type, CACHE.results);
+        if (!s) continue;
+        for (const r of s.results) {
+          const pts = Number(r.points ?? 0);
+          const id = s.idOf(r.driver_number);
+          if (!id || (!pts && r.position !== 1)) continue;
+          const driver = dMap.get(id)?.driver ?? grid.get(id);
+          if (!driver) continue;
+          const d = dMap.get(id) ?? { position: 0, points: 0, wins: 0, driver };
+          d.points += pts;
+          if (type === "RACE" && r.position === 1) d.wins += 1;
+          dMap.set(id, d);
+          const c = cMap.get(driver.teamId);
+          if (c) {
+            c.points += pts;
+            if (type === "RACE" && r.position === 1) c.wins += 1;
+          }
+        }
+        if (!done.includes(w.round)) done.push(w.round);
+      }
+    }
+    const rank = <T extends { points: number; wins: number; position: number }>(list: T[]) =>
+      list
+        .sort((a, b) => b.points - a.points || b.wins - a.wins || a.position - b.position)
+        .map((x, i) => ({ ...x, position: i + 1 }));
+    return { drivers: rank([...dMap.values()]), constructors: rank([...cMap.values()]), provisionalRounds: done };
+  } catch (e) {
+    console.warn("provisional standings failed", e);
+    return { drivers, constructors, provisionalRounds: [] };
+  }
 }
 
 /** OpenF1 answers 404 "No results found" for empty queries. */

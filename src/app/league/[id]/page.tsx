@@ -3,11 +3,11 @@ import { ChevronRight, Crown, Globe, Shield } from "lucide-react";
 import { Flag } from "@/components/Flag";
 import { InviteBox, LeaveLeagueButton, RecalcButton } from "@/components/league/actions";
 import { Leaderboard } from "@/components/league/Leaderboard";
-import { RoundCards } from "@/components/league/RoundCards";
+import { RoundCards, type RoundCardData } from "@/components/league/RoundCards";
 import { PageTitle, TeamBar } from "@/components/league/ui";
 import { ROUND_LABELS } from "@/lib/scoring.config";
 import { currentProfile } from "@/lib/server/auth";
-import { canManage, getLeague, leagueView } from "@/lib/server/league";
+import { canManage, getLeague, leagueView, type RoundView } from "@/lib/server/league";
 import { team } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +29,24 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/l
   const manage = canManage(league, me);
   const isOwner = !!me && league.owner_profile_id === me.id;
   const byId = new Map(view.members.map((p) => [p.id, p]));
+
+  const toCard = (r: RoundView): RoundCardData => ({
+    season: r.round.season,
+    round: r.round.round,
+    type: r.round.type,
+    lockAt: r.round.lockAt,
+    status: r.status,
+    mine: me ? r.submitted.includes(me.id) : null,
+    submittedCount: r.submittedCount,
+    players: league.is_global
+      ? undefined
+      : view.members.map((p) => ({
+          id: p.id,
+          nickname: p.nickname,
+          teamColor: team(p.team_id).color,
+          submitted: r.submitted.includes(p.id),
+        })),
+  });
 
   let rows = view.leaderboard;
   if (league.is_global && rows.length > GLOBAL_ROWS) {
@@ -84,6 +102,22 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/l
         </div>
       )}
 
+      {view.lastWeekend && view.lastRounds.length > 0 && (
+        <section aria-labelledby="lwk-h">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="eyebrow">Last weekend · Round {view.lastWeekend.round}</p>
+              <h2 id="lwk-h" className="display mt-1 flex items-center gap-2.5 text-3xl italic">
+                <Flag country={view.lastWeekend.country} className="h-5 w-7" />
+                {view.lastWeekend.name}
+              </h2>
+            </div>
+            {manage && <RecalcButton leagueId={id} season={view.lastWeekend.season} round={view.lastWeekend.round} />}
+          </div>
+          <RoundCards leagueId={id} rounds={view.lastRounds.map(toCard)} />
+        </section>
+      )}
+
       {view.weekend ? (
         <section aria-labelledby="wk-h">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -96,26 +130,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/l
             </div>
             {manage && <RecalcButton leagueId={id} season={view.weekend.season} round={view.weekend.round} />}
           </div>
-          <RoundCards
-            leagueId={id}
-            rounds={view.rounds.map((r) => ({
-              season: r.round.season,
-              round: r.round.round,
-              type: r.round.type,
-              lockAt: r.round.lockAt,
-              status: r.status,
-              mine: me ? r.submitted.includes(me.id) : null,
-              submittedCount: r.submittedCount,
-              players: league.is_global
-                ? undefined
-                : view.members.map((p) => ({
-                    id: p.id,
-                    nickname: p.nickname,
-                    teamColor: team(p.team_id).color,
-                    submitted: r.submitted.includes(p.id),
-                  })),
-            }))}
-          />
+          <RoundCards leagueId={id} rounds={view.rounds.map(toCard)} />
         </section>
       ) : (
         <p className="panel p-5 text-muted">No upcoming weekend on the calendar. Predictions open when the next season&apos;s schedule is out.</p>

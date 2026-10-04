@@ -249,6 +249,8 @@ export interface WeekendHistory {
 }
 
 const HISTORY_TOP_GLOBAL = 5;
+/** How long the just-finished weekend stays on the league page. */
+const LAST_WEEKEND_DAYS = 3;
 
 export async function leagueView(league: LeagueRow, viewerId: string | null) {
   const { weekend, season } = await getFeaturedWeekend().catch(() => ({ weekend: null as Weekend | null, season: new Date().getUTCFullYear() }));
@@ -256,14 +258,23 @@ export async function leagueView(league: LeagueRow, viewerId: string | null) {
 
   const members = await leagueMembers(league);
   const ids = league.is_global ? null : members.map((m) => m.id);
-  const [scores, schedule, submitted] = await Promise.all([
+  const schedule = await getSchedule(season).catch(() => [] as Weekend[]);
+  // Keep the weekend that just finished on screen for a few days, so its points are one tap away.
+  const now = Date.now();
+  const lastWeekend =
+    [...schedule]
+      .reverse()
+      .find((w) => w.round !== weekend?.round && new Date(w.sessions.at(-1)!.end).getTime() < now) ?? null;
+  const recent = lastWeekend && now - new Date(lastWeekend.sessions.at(-1)!.end).getTime() < LAST_WEEKEND_DAYS * 86400_000 ? lastWeekend : null;
+  const empty = Promise.resolve(new Map<RoundType, Set<string>>());
+  const [scores, submitted, submittedLast] = await Promise.all([
     fetchAll<{ profile_id: string; round: number; round_type: RoundType; total: number; exact: number; slots: number }>((a, b) => {
       let q = db().from("pick_scores").select("profile_id, round, round_type, total, exact, slots").eq("season", season);
       if (ids) q = q.in("profile_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
       return q.range(a, b);
     }),
-    getSchedule(season).catch(() => [] as Weekend[]),
-    weekend ? submittedFor(weekend.season, weekend.round, ids) : Promise.resolve(new Map<RoundType, Set<string>>()),
+    weekend ? submittedFor(weekend.season, weekend.round, ids) : empty,
+    recent ? submittedFor(recent.season, recent.round, ids) : empty,
   ]);
 
   const lbScores: LbScore[] = scores.map((s) => ({
@@ -275,17 +286,20 @@ export async function leagueView(league: LeagueRow, viewerId: string | null) {
   );
 
   const scoredKeys = new Set(scores.map((s) => `${s.round}-${s.round_type}`));
-  const rounds: RoundView[] = weekend
-    ? predictionRounds(weekend).map((r) => {
-        const set = submitted.get(r.type) ?? new Set<string>();
-        return {
-          round: r,
-          status: roundStatus(r, scoredKeys.has(`${r.round}-${r.type}`)),
-          submitted: league.is_global ? (viewerId && set.has(viewerId) ? [viewerId] : []) : [...set],
-          submittedCount: set.size,
-        };
-      })
-    : [];
+  const toViews = (w: Weekend | null, sub: Map<RoundType, Set<string>>): RoundView[] =>
+    w
+      ? predictionRounds(w).map((r) => {
+          const set = sub.get(r.type) ?? new Set<string>();
+          return {
+            round: r,
+            status: roundStatus(r, scoredKeys.has(`${r.round}-${r.type}`)),
+            submitted: league.is_global ? (viewerId && set.has(viewerId) ? [viewerId] : []) : [...set],
+            submittedCount: set.size,
+          };
+        })
+      : [];
+  const rounds = toViews(weekend, submitted);
+  const lastRounds = toViews(recent, submittedLast);
 
   const byRound = new Map<number, WeekendHistory>();
   for (const s of scores) {
@@ -307,7 +321,7 @@ export async function leagueView(league: LeagueRow, viewerId: string | null) {
     }
   }
 
-  return { season, weekend, members, leaderboard, rounds, history };
+  return { season, weekend, members, leaderboard, rounds, history, lastWeekend: recent, lastRounds };
 }
 
 /** How many revealed picks to show in the global league (plus the viewer's). */

@@ -62,4 +62,6 @@ export interface RaceResult {
   round: number;
   name: string;
   rows: ResultRow[];
+  /** Built from OpenF1 because Jolpica hasn't published the official result yet. */
+  provisional?: boolean;
 }

@@ -6,7 +6,7 @@ import { NextSession, Schedule } from "@/components/WeekendPanel";
 import { PredictStrip } from "@/components/PredictStrip";
 import { predictionRounds } from "@/lib/rounds";
 import Link from "next/link";
-import { getConstructorStandings, getDriverStandings, getFeaturedWeekend, getLastRaceResult } from "@/lib/f1";
+import { getFeaturedWeekend, getLatestRaceResult, getStandings } from "@/lib/f1";
 import { SITE_DESCRIPTION, SITE_URL } from "@/lib/site";
 
 // Re-render at most every 5 minutes; Jolpica responses are cached separately.
@@ -35,12 +35,13 @@ const settle = async <T,>(p: Promise<T>): Promise<T | null> => {
 };
 
 export default async function Home() {
-  const [featured, drivers, constructors, last] = await Promise.all([
+  const [featured, standings, last] = await Promise.all([
     settle(getFeaturedWeekend()),
-    settle(getDriverStandings()),
-    settle(getConstructorStandings()),
-    settle(getLastRaceResult()),
+    settle(getStandings()),
+    settle(getLatestRaceResult()),
   ]);
+  const drivers = standings?.drivers ?? null;
+  const constructors = standings?.constructors ?? null;
   const apiDown = featured === null && drivers === null;
   const w = featured?.weekend ?? null;
 
@@ -104,7 +105,7 @@ export default async function Home() {
         <LastResult result={last} />
         {(drivers?.length || constructors?.length) ? (
           <div className={w ? "lg:col-span-2" : ""}>
-            <StandingsPanel drivers={drivers ?? []} constructors={constructors ?? []} />
+            <StandingsPanel drivers={drivers ?? []} constructors={constructors ?? []} provisionalRounds={standings?.provisionalRounds ?? []} />
           </div>
         ) : null}
       </div>
