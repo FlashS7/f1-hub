@@ -42,3 +42,4 @@ next-env.d.ts
 
 !.env.example
 f1-hub-prompt.md
+promo/
