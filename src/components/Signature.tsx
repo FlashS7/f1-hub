@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function Signature() {
   return (
     <footer className="pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 text-center">
@@ -9,6 +11,11 @@ export function Signature() {
       >
         S.J.ŠEVC
       </span>
+      <p className="mt-3 text-[11px] text-faint">
+        <Link href="/feedback" className="underline-offset-4 hover:text-text hover:underline">
+          Idea or bug? Tell me
+        </Link>
+      </p>
     </footer>
   );
 }
