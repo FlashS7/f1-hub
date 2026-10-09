@@ -17,7 +17,7 @@ import { Check, GripVertical, Loader2, Timer, X } from "lucide-react";
 import { inkOn } from "@/lib/accent";
 import { team } from "@/lib/teams";
 import type { Driver } from "@/lib/types";
-import type { RoundType } from "@/lib/scoring.config";
+import { ROUND_LABELS, type RoundType } from "@/lib/scoring.config";
 import { CountdownText } from "../Countdown";
 import { triggerLightsOut } from "../LightsOut";
 import { api } from "./forms";
@@ -74,6 +74,65 @@ function SortableRow({
   );
 }
 
+/** This weekend's finished sessions (e.g. qualifying = race grid) with a one-tap "use as my top 10". */
+function ReferencePanel({
+  references,
+  byId,
+  disabled,
+  onUse,
+}: {
+  references: { type: RoundType; order: string[] }[];
+  byId: Map<string, Driver>;
+  disabled: boolean;
+  onUse: (order: string[]) => void;
+}) {
+  const [tab, setTab] = useState(0);
+  const ref = references[Math.min(tab, references.length - 1)];
+  return (
+    <details open className="panel group mb-4 p-3 sm:p-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+        <span className="eyebrow">This weekend so far</span>
+        <span className="text-xs text-faint group-open:hidden">Show</span>
+        <span className="hidden text-xs text-faint group-open:inline">Hide</span>
+      </summary>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div role="tablist" aria-label="Session result" className="flex flex-wrap gap-1">
+          {references.map((r, i) => (
+            <button
+              key={r.type}
+              role="tab"
+              aria-selected={i === tab}
+              onClick={() => setTab(i)}
+              className={`cut-sm px-2.5 py-1 text-[12px] font-bold uppercase tracking-[0.12em] ${
+                i === tab ? "bg-accent text-[var(--accent-ink)]" : "bg-surface-2 text-muted hover:text-text"
+              }`}
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {ROUND_LABELS[r.type]}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="btn-ghost !px-3 !py-1.5 text-xs" disabled={disabled} onClick={() => onUse(ref.order)}>
+          Use as my top 10
+        </button>
+      </div>
+      <ol className="mt-3 grid grid-flow-col grid-cols-2 gap-x-4" style={{ gridTemplateRows: `repeat(${Math.ceil(Math.min(ref.order.length, 22) / 2)}, auto)` }}>
+        {ref.order.slice(0, 22).map((id, i) => {
+          const d = byId.get(id);
+          return (
+            <li key={id} className={`flex items-center gap-2 border-b border-line/40 py-1 text-sm ${i >= 10 ? "opacity-60" : ""}`}>
+              <span className="w-6 text-right font-mono text-xs text-faint">{i + 1}</span>
+              <span className="h-4 w-1 shrink-0 -skew-x-12" style={{ background: team(d?.teamId).color }} aria-hidden />
+              <span className="font-mono text-xs font-bold">{d?.code ?? id.slice(0, 3).toUpperCase()}</span>
+              <span className="truncate text-xs text-muted">{d?.lastName}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
 export function PredictionEditor({
   season,
   round,
@@ -81,6 +140,7 @@ export function PredictionEditor({
   lockAt,
   grid,
   initial,
+  references = [],
 }: {
   season: number;
   round: number;
@@ -88,6 +148,8 @@ export function PredictionEditor({
   lockAt: string;
   grid: Driver[];
   initial: { picks: string[]; fastestLap: string | null } | null;
+  /** Results of this weekend's earlier sessions, e.g. qualifying when picking the race. */
+  references?: { type: RoundType; order: string[] }[];
 }) {
   const router = useRouter();
   const byId = useMemo(() => new Map(grid.map((d) => [d.id, d])), [grid]);
@@ -232,6 +294,20 @@ export function PredictionEditor({
 
       {/* Driver grid */}
       <section aria-labelledby="grid-h" className="order-1 lg:order-2">
+        {references.length > 0 && (
+          <ReferencePanel
+            references={references}
+            byId={byId}
+            disabled={locked}
+            onUse={(order) => {
+              const next = order.filter((id) => byId.has(id)).slice(0, N);
+              if (picks.length && !confirm("Replace your current top 10 with this order?")) return;
+              setPicks(next);
+              setSelected(null);
+              setMode("order");
+            }}
+          />
+        )}
         <div className="mb-2 flex items-center justify-between">
           <h2 id="grid-h" className="eyebrow">
             {mode === "fl" ? <span className="text-purple">Pick fastest lap</span> : selected !== null ? `Choose driver for P${selected + 1}` : "Drivers"}

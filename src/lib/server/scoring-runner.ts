@@ -8,7 +8,7 @@ import { db, fetchAll, must } from "./db";
 const RETRY_MS = 5 * 60_000;
 const lastTry = new Map<string, number>();
 
-async function loadOrFetchResult(season: number, round: number, type: RoundType, refetch: boolean) {
+export async function loadOrFetchResult(season: number, round: number, type: RoundType, refetch: boolean) {
   if (!refetch) {
     const { data } = await db()
       .from("session_results")

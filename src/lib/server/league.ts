@@ -1,14 +1,14 @@
 import { randomInt } from "node:crypto";
 import { getFeaturedWeekend, getGrid, getSchedule } from "../f1";
 import { buildLeaderboard, type LbRow, type LbScore } from "../leaderboard";
-import { isLocked, predictionRounds, roundStatus, type PredRound, type RoundStatus } from "../rounds";
+import { isLocked, predictionRounds, readyToScore, roundStatus, type PredRound, type RoundStatus } from "../rounds";
 import { PredictionError, validatePrediction, type RoundScore } from "../scoring";
 import { ROUND_ORDER, type RoundType } from "../scoring.config";
 import { TEAMS } from "../teams";
 import type { Weekend } from "../types";
 import { PIN_RE, PROFILE_COLS, hashPin, type Profile } from "./auth";
 import { db, fetchAll, must } from "./db";
-import { ensureScored } from "./scoring-runner";
+import { ensureScored, loadOrFetchResult } from "./scoring-runner";
 
 export class UserError extends Error {
   constructor(message: string, public status = 400) {
@@ -202,6 +202,37 @@ export async function savePick(profile: Profile, season: number, round: number, 
       { onConflict: "profile_id,season,round,round_type" },
     ),
   );
+}
+
+/** Earlier sessions of the same weekend worth seeing while picking a round, most relevant first. */
+const REFERENCES: Record<RoundType, RoundType[]> = {
+  SQ: [],
+  SPRINT: ["SQ"],
+  QUALI: ["SPRINT", "SQ"],
+  RACE: ["QUALI", "SPRINT"],
+};
+
+export interface ReferenceResult {
+  type: RoundType;
+  /** driverIds in finishing order (classified only) */
+  order: string[];
+}
+
+/** Results of the weekend's earlier sessions (once finished), shown next to the pick editor. */
+export async function referenceResults(weekend: Weekend, type: RoundType): Promise<ReferenceResult[]> {
+  const rounds = predictionRounds(weekend);
+  const wanted = REFERENCES[type]
+    .map((t) => rounds.find((r) => r.type === t))
+    .filter((r): r is PredRound => !!r && readyToScore(r));
+  const out = await Promise.all(
+    wanted.map(async (r) => {
+      const res = await loadOrFetchResult(weekend.season, weekend.round, r.type, false).catch(() => null);
+      if (!res) return null;
+      const order = Object.entries(res.positions).sort((a, b) => a[1] - b[1]).map(([id]) => id);
+      return order.length ? { type: r.type, order } : null;
+    }),
+  );
+  return out.filter((x): x is ReferenceResult => x !== null);
 }
 
 export async function myPick(profileId: string, season: number, round: number, type: RoundType): Promise<PickRow | null> {

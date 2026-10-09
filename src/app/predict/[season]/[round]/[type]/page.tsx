@@ -11,7 +11,7 @@ import { isLocked, predictionRounds } from "@/lib/rounds";
 import { ROUND_LABELS, ROUND_ORDER, SCORING, type RoundType } from "@/lib/scoring.config";
 import { currentProfile } from "@/lib/server/auth";
 import { dbConfigured } from "@/lib/server/db";
-import { UserError, findRound, getGlobalLeague, myPick } from "@/lib/server/league";
+import { UserError, findRound, getGlobalLeague, myPick, referenceResults } from "@/lib/server/league";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ export default async function PredictPage({ params }: PageProps<"/predict/[seaso
     if (g) redirect(`/league/${g.id}/round/${season}/${round}/${type}`);
   }
 
-  const [me, grid] = await Promise.all([currentProfile(), getGrid()]);
+  const [me, grid, references] = await Promise.all([currentProfile(), getGrid(), referenceResults(weekend, type)]);
   const mine = me ? await myPick(me.id, season, round, type) : null;
 
   return (
@@ -84,6 +84,7 @@ export default async function PredictPage({ params }: PageProps<"/predict/[seaso
               lockAt={r.lockAt}
               grid={grid}
               initial={mine ? { picks: mine.picks, fastestLap: mine.fastest_lap } : null}
+              references={references}
             />
           </>
         ) : (
