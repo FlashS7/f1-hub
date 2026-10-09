@@ -43,3 +43,6 @@ next-env.d.ts
 !.env.example
 f1-hub-prompt.md
 promo/
+*.png
+!public/**/*.png
+!src/app/*.png
