@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { Accent } from "@/components/Accent";
 import { AdminFeedback, type FeedbackItem } from "@/components/AdminFeedback";
+import { PushTestButton } from "@/components/PushTestButton";
 import { PageTitle } from "@/components/league/ui";
 import { getFeaturedWeekend } from "@/lib/f1";
 import { predictionRounds } from "@/lib/rounds";
@@ -41,7 +42,7 @@ export default async function AdminPage() {
   const week = since(7);
   const { weekend } = await getFeaturedWeekend().catch(() => ({ weekend: null }));
 
-  const [profiles, new24, new7, privateLeagues, members, fbNew, fbRows, pickRows] = await Promise.all([
+  const [profiles, new24, new7, privateLeagues, members, fbNew, fbRows, pickRows, pushSubs] = await Promise.all([
     count("profiles"),
     count("profiles", (q) => q.gte("created_at", day)),
     count("profiles", (q) => q.gte("created_at", week)),
@@ -53,6 +54,7 @@ export default async function AdminPage() {
     weekend
       ? db().from("picks").select("round_type, profile_id").eq("season", weekend.season).eq("round", weekend.round)
       : Promise.resolve({ data: [] as { round_type: string; profile_id: string }[] }),
+    count("push_subscriptions"),
   ]);
 
   const picks = pickRows.data ?? [];
@@ -83,6 +85,10 @@ export default async function AdminPage() {
             <Stat label="Picking this weekend" value={pickers} sub={weekend ? weekend.name : "No weekend"} />
             <Stat label="Private leagues" value={privateLeagues} sub={`${members} memberships`} />
             <Stat label="New feedback" value={fbNew} />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">
+            <span>Session reminders on: <b className="text-text">{pushSubs}</b> devices</span>
+            <PushTestButton />
           </div>
           {weekend && (
             <p className="mt-3 text-xs text-muted">

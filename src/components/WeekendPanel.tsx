@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Weekend } from "@/lib/types";
 import { Countdown } from "./Countdown";
+import { NotifyToggle } from "./NotifyToggle";
 import { LocalTime, TzSelect } from "./Timezone";
 
 const SECTOR: Record<string, string> = {
@@ -51,6 +52,7 @@ export function NextSession({ weekend }: { weekend: Weekend }) {
             </p>
           </div>
           <Countdown target={next.start} />
+          <NotifyToggle />
         </>
       ) : (
         !live && now !== null && <p className="display text-3xl text-muted">Weekend complete</p>
