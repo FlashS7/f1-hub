@@ -14,7 +14,7 @@ export const TEAMS: Record<string, Team> = {
   rb: { id: "rb", name: "Racing Bulls", short: "RB", color: "#6C98FF" },
   williams: { id: "williams", name: "Williams", short: "WIL", color: "#1868DB" },
   aston_martin: { id: "aston_martin", name: "Aston Martin", short: "AMR", color: "#229971" },
-  alpine: { id: "alpine", name: "Alpine", short: "ALP", color: "#00A1E8" },
+  alpine: { id: "alpine", name: "Alpine", short: "ALP", color: "#FF87BC" }, // BWT pink: tells it apart from the three blue teams
   haas: { id: "haas", name: "Haas", short: "HAA", color: "#9C9FA2" },
   audi: { id: "audi", name: "Audi", short: "AUD", color: "#F50537" },
   cadillac: { id: "cadillac", name: "Cadillac", short: "CAD", color: "#B6BABD" },
