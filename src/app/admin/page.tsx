@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { Accent } from "@/components/Accent";
 import { AdminFeedback, type FeedbackItem } from "@/components/AdminFeedback";
 import { PushTestButton } from "@/components/PushTestButton";
+import { SessionDelays } from "@/components/SessionDelays";
 import { PageTitle } from "@/components/league/ui";
 import { getFeaturedWeekend } from "@/lib/f1";
 import { predictionRounds } from "@/lib/rounds";
@@ -99,6 +100,8 @@ export default async function AdminPage() {
             </p>
           )}
         </section>
+
+        {weekend && <SessionDelays season={weekend.season} round={weekend.round} sessions={weekend.sessions} />}
 
         <section className="panel p-4 sm:p-5" aria-labelledby="fb-h">
           <h2 id="fb-h" className="display text-2xl">Feedback</h2>

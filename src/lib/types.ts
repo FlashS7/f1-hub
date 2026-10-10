@@ -9,6 +9,8 @@ export interface Session {
   start: string;
   /** ISO UTC estimated end */
   end: string;
+  /** Original start when the admin moved the session (delay). */
+  scheduledStart?: string;
 }
 
 export interface Weekend {

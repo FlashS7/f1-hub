@@ -47,6 +47,9 @@ export function NextSession({ weekend }: { weekend: Weekend }) {
               <span className="mr-3 inline-block h-[0.7em] w-1.5 -skew-x-12 align-baseline" style={{ background: SECTOR[next.key] }} />
               {next.label}
             </h2>
+            {next.scheduledStart && (
+              <p className="mt-1.5"><span className="chip cut-sm bg-yellow/15 text-yellow">Delayed</span></p>
+            )}
             <p className="mt-1.5 text-sm text-muted">
               <LocalTime iso={next.start} opts={{ weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }} />
             </p>
@@ -87,7 +90,10 @@ export function Schedule({ weekend }: { weekend: Weekend }) {
               <div className="w-[88px] shrink-0 text-xs uppercase tracking-widest text-muted">
                 <LocalTime iso={s.start} opts={{ weekday: "short", day: "numeric", month: "short" }} />
               </div>
-              <div className="flex-1 font-semibold">{s.label}</div>
+              <div className="flex-1 font-semibold">
+                {s.label}
+                {s.scheduledStart && <span className="chip cut-sm ml-2 bg-yellow/15 text-yellow">Delayed</span>}
+              </div>
               {live && (
                 <span className="chip cut-sm bg-red text-white">
                   <span className="live-dot size-1.5 rounded-full bg-white" /> Live

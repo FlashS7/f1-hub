@@ -115,7 +115,59 @@ function mapWeekend(r: any): Weekend {
 
 export async function getSchedule(season: number | "current" = "current"): Promise<Weekend[]> {
   const j = await jolpica(`${season}.json?limit=100`, CACHE.schedule);
-  return (j.MRData.RaceTable.Races as any[]).map(mapWeekend);
+  const weekends = (j.MRData.RaceTable.Races as any[]).map(mapWeekend);
+  return applyOverrides(weekends, await getOverrides());
+}
+
+/* ---------- delays: admin-set start times (the APIs only know the original schedule) ---------- */
+
+export interface SessionOverride {
+  season: number;
+  round: number;
+  session_key: SessionKey;
+  start: string;
+}
+
+const OVERRIDE_TTL_MS = 20_000;
+let overrideCache: { at: number; rows: SessionOverride[] } | null = null;
+
+export function clearOverrideCache() {
+  overrideCache = null;
+}
+
+async function getOverrides(): Promise<SessionOverride[]> {
+  if (overrideCache && Date.now() - overrideCache.at < OVERRIDE_TTL_MS) return overrideCache.rows;
+  try {
+    const { db, dbConfigured } = await import("./server/db");
+    if (!dbConfigured()) return [];
+    const { data, error } = await db().from("session_overrides").select("season, round, session_key, start");
+    // Table missing (migration not run yet) or DB down: fall back to the plain schedule.
+    const rows = error ? [] : ((data ?? []) as SessionOverride[]);
+    overrideCache = { at: Date.now(), rows };
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+/** Moves delayed sessions to their new start (end moves with it) and marks them. Pure. */
+export function applyOverrides(weekends: Weekend[], overrides: SessionOverride[]): Weekend[] {
+  if (!overrides.length) return weekends;
+  return weekends.map((w) => {
+    const mine = overrides.filter((o) => o.season === w.season && o.round === w.round);
+    if (!mine.length) return w;
+    const sessions = w.sessions
+      .map((s) => {
+        const o = mine.find((x) => x.session_key === s.key);
+        if (!o) return s;
+        const start = new Date(o.start).toISOString();
+        if (start === s.start) return s;
+        const end = new Date(new Date(start).getTime() + DURATION_MIN[s.key] * 60_000).toISOString();
+        return { ...s, start, end, scheduledStart: s.start };
+      })
+      .sort((a, b) => a.start.localeCompare(b.start));
+    return { ...w, sessions };
+  });
 }
 
 export async function getWeekend(season: number, round: number): Promise<Weekend | null> {

@@ -81,7 +81,8 @@ export async function notifyUpcoming(now = new Date()) {
   const due = dueSessions(weekend.sessions, now);
   const sent: { session: string; ok: number; gone: number }[] = [];
   for (const s of due) {
-    const id = `${weekend.season}-${weekend.round}-${s.key}`;
+    // A delayed session gets a fresh reminder for its new start time.
+    const id = `${weekend.season}-${weekend.round}-${s.key}${s.scheduledStart ? `@${s.start.slice(11, 16)}` : ""}`;
     const claim = await db().from("push_log").insert({ session_id: id });
     if (claim.error) continue; // already announced (primary key)
 
