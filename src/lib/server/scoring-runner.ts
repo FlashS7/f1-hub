@@ -4,6 +4,13 @@ import { scoreRound, type SessionResult } from "../scoring";
 import type { RoundType } from "../scoring.config";
 import { db, fetchAll, must } from "./db";
 
+/** Keep only real finishing positions (guards against rows stored before a source quirk was handled). */
+export function cleanPositions(raw: Record<string, unknown>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(raw ?? {}).filter(([, v]) => Number.isInteger(v) && (v as number) > 0) as [string, number][],
+  );
+}
+
 /** Don't hit the APIs for the same missing result more than once per this many ms (per server instance). */
 const RETRY_MS = 5 * 60_000;
 const lastTry = new Map<string, number>();
@@ -15,7 +22,7 @@ export async function loadOrFetchResult(season: number, round: number, type: Rou
       .select("positions, fastest_lap")
       .eq("season", season).eq("round", round).eq("round_type", type)
       .maybeSingle();
-    if (data) return { positions: data.positions, fastestLap: data.fastest_lap } as SessionResult;
+    if (data) return { positions: cleanPositions(data.positions), fastestLap: data.fastest_lap } as SessionResult;
   }
   const res = await getSessionResult(season, round, type);
   if (!res) return null;

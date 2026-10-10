@@ -52,7 +52,7 @@ export default async function RoundPage({ params }: PageProps<"/league/[id]/roun
     })
     .sort((a, b) => (b.score?.total ?? 0) - (a.score?.total ?? 0) || a.nickname.localeCompare(b.nickname));
 
-  const actualTop = v.result ? Object.entries(v.result.positions).sort((a, b) => a[1] - b[1]).slice(0, 10) : [];
+  const actualTop = v.result ? Object.entries(v.result.positions).filter(([, p]) => Number.isInteger(p) && p > 0).sort((a, b) => a[1] - b[1]).slice(0, 10) : [];
   const editHref = `/predict/${season}/${round}/${type}`;
 
   return (

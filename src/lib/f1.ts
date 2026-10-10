@@ -356,10 +356,11 @@ async function fetchOpenF1Result(season: number, round: number, type: RoundType)
   const positions: Record<string, number> = {};
   for (const r of results) {
     // Disqualified never scores. In qualifying a non-starter still gets a grid slot; in a race they don't.
-    if (r.position == null || r.dsq) continue;
+    const pos = posOf(r);
+    if (pos === null || r.dsq) continue;
     if (r.dns && (type === "RACE" || type === "SPRINT")) continue;
     const id = idOf(r.driver_number);
-    if (id) positions[id] = Number(r.position);
+    if (id) positions[id] = pos;
   }
   if (!Object.keys(positions).length) return null;
 
@@ -399,20 +400,21 @@ export async function getLatestRaceResult(): Promise<RaceResult | null> {
     const grid = new Map((await getGrid()).map((d) => [d.id, d]));
     const fl = await openF1FastestLap(s.key, s.idOf, CACHE.results);
     const rows: ResultRow[] = [...s.results]
-      .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
+      .sort((a, b) => (posOf(a) ?? 99) - (posOf(b) ?? 99))
       .flatMap((r) => {
         const id = s.idOf(r.driver_number);
         const driver = id ? grid.get(id) : undefined;
         if (!driver) return [];
-        const out = r.dsq ? "DSQ" : r.dns ? "DNS" : r.dnf && r.position == null ? "DNF" : null;
+        const pos = posOf(r);
+        const out = r.dsq ? "DSQ" : r.dns ? "DNS" : pos === null ? (typeof r.position === "string" ? r.position : "DNF") : null;
         const gap = r.gap_to_leader;
         return [{
-          position: out ? null : r.position,
-          positionText: out ?? String(r.position),
+          position: out ? null : pos,
+          positionText: out ?? String(pos),
           driver,
           status: out ?? (r.dnf ? "Retired" : "Finished"),
           points: Number(r.points ?? 0),
-          time: out ? undefined : r.position === 1 && r.duration ? fmtDuration(r.duration) : typeof gap === "number" ? `+${gap.toFixed(3)}s` : gap ?? undefined,
+          time: out ? undefined : pos === 1 && r.duration ? fmtDuration(r.duration) : typeof gap === "number" ? `+${gap.toFixed(3)}s` : gap ?? undefined,
           fastestLapRank: id === fl ? 1 : undefined,
         }];
       });
@@ -456,17 +458,17 @@ export async function getStandings(): Promise<Standings> {
         for (const r of s.results) {
           const pts = Number(r.points ?? 0);
           const id = s.idOf(r.driver_number);
-          if (!id || (!pts && r.position !== 1)) continue;
+          if (!id || (!pts && posOf(r) !== 1)) continue;
           const driver = dMap.get(id)?.driver ?? grid.get(id);
           if (!driver) continue;
           const d = dMap.get(id) ?? { position: 0, points: 0, wins: 0, driver };
           d.points += pts;
-          if (type === "RACE" && r.position === 1) d.wins += 1;
+          if (type === "RACE" && posOf(r) === 1) d.wins += 1;
           dMap.set(id, d);
           const c = cMap.get(driver.teamId);
           if (c) {
             c.points += pts;
-            if (type === "RACE" && r.position === 1) c.wins += 1;
+            if (type === "RACE" && posOf(r) === 1) c.wins += 1;
           }
         }
         if (!done.includes(w.round)) done.push(w.round);
@@ -481,6 +483,12 @@ export async function getStandings(): Promise<Standings> {
     console.warn("provisional standings failed", e);
     return { drivers, constructors, provisionalRounds: [] };
   }
+}
+
+/** OpenF1 positions are numbers, but non-classified rows can carry text like "RT". Null unless a real position. */
+function posOf(r: any): number | null {
+  const n = Number(r?.position);
+  return r?.position != null && Number.isInteger(n) && n > 0 ? n : null;
 }
 
 /** OpenF1 answers 404 "No results found" for empty queries. */
